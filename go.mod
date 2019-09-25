@@ -1,3 +1,3 @@
-module github.com/errorboi/books-RESTfulAPI/db
+module github.com/errorboi/books-RESTfulAPI
 
 go 1.12
