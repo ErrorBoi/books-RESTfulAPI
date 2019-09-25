@@ -22,9 +22,11 @@ type Book struct {
 
 var books []Book
 
+// BooksAPI database
+var bdb *db.DB
+
 func main() {
 	CreateConfig()
-
 	port := os.Getenv("PORT")
 	user := os.Getenv("USER")
 	pass := os.Getenv("PASSWORD")
@@ -37,21 +39,18 @@ func main() {
 		Handler: router,
 	}
 
-	books = append(books,
-		Book{ID: "1", Title: "Golang pointers", Author: "Mr. Golang", Year: "2010"},
-		Book{ID: "2", Title: "Goroutines", Author: "Mr. Goroutine", Year: "2011"},
-		Book{ID: "3", Title: "Golang routers", Author: "Mr. Router", Year: "2012"},
-		Book{ID: "4", Title: "Golang concurrency", Author: "Mr. Currency", Year: "2013"},
-		Book{ID: "5", Title: "Golang good parts", Author: "Mr. Good", Year: "2014"})
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=booksapi sslmode=disable",
+		addr, dbport, user, pass)
+	bdb = db.InitDB(psqlInfo)
+	defer bdb.DB.Close()
+	bdb.NewDatabase("booksapi")
+	bdb.NewBooksTable()
 
 	router.HandleFunc("/books", getBooks).Methods("GET")
 	router.HandleFunc("/books/{id}", getBook).Methods("GET")
 	router.HandleFunc("/books", addBook).Methods("POST")
 	router.HandleFunc("/books", updateBook).Methods("PUT")
 	router.HandleFunc("/books/{id}", removeBook).Methods("DELETE")
-
-	dataSourceName := fmt.Sprintf("postgres://%s:%s@%s:%s", user, pass, addr, dbport)
-	db.InitDB(dataSourceName)
 
 	log.Printf("Listening on port :%s", port)
 	if err := srv.ListenAndServe(); err != nil {
@@ -60,6 +59,25 @@ func main() {
 }
 
 func getBooks(w http.ResponseWriter, r *http.Request) {
+	var book Book
+	books = make([]Book, 0)
+
+	rows, err := bdb.DB.Query("SELECT * FROM books")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		err = rows.Scan(&book.ID, &book.Title, &book.Author, &book.Year)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		books = append(books, book)
+	}
+
 	json.NewEncoder(w).Encode(books)
 }
 
