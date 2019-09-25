@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+
+	"books-list/db"
 
 	"github.com/gorilla/mux"
 )
@@ -21,7 +24,13 @@ var books []Book
 
 func main() {
 	CreateConfig()
+
 	port := os.Getenv("PORT")
+	user := os.Getenv("USER")
+	pass := os.Getenv("PASSWORD")
+	addr := os.Getenv("ADDRESS")
+	dbport := os.Getenv("DBPORT")
+
 	router := mux.NewRouter()
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -40,6 +49,9 @@ func main() {
 	router.HandleFunc("/books", addBook).Methods("POST")
 	router.HandleFunc("/books", updateBook).Methods("PUT")
 	router.HandleFunc("/books/{id}", removeBook).Methods("DELETE")
+
+	dataSourceName := fmt.Sprintf("postgres://%s:%s@%s:%s", user, pass, addr, dbport)
+	db.InitDB(dataSourceName)
 
 	log.Printf("Listening on port :%s", port)
 	if err := srv.ListenAndServe(); err != nil {
