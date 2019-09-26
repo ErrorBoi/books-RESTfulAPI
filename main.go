@@ -63,17 +63,13 @@ func getBooks(w http.ResponseWriter, r *http.Request) {
 	books = make([]Book, 0)
 
 	rows, err := bdb.DB.Query("SELECT * FROM books")
-	if err != nil {
-		log.Fatal(err)
-	}
+	logFatal(err)
 
 	defer rows.Close()
 
 	for rows.Next() {
 		err = rows.Scan(&book.ID, &book.Title, &book.Author, &book.Year)
-		if err != nil {
-			log.Fatal(err)
-		}
+		logFatal(err)
 
 		books = append(books, book)
 	}
@@ -82,43 +78,64 @@ func getBooks(w http.ResponseWriter, r *http.Request) {
 }
 
 func getBook(w http.ResponseWriter, r *http.Request) {
+	var book Book
 	params := mux.Vars(r)
 
-	for _, book := range books {
-		if book.ID == params["id"] {
-			json.NewEncoder(w).Encode(&book)
-		}
-	}
+	row := bdb.DB.QueryRow(`SELECT * FROM books
+	WHERE id=$1`, params["id"])
+
+	err := row.Scan(&book.ID, &book.Title, &book.Author, &book.Year)
+	logFatal(err)
+
+	json.NewEncoder(w).Encode(book)
 }
 
 func addBook(w http.ResponseWriter, r *http.Request) {
 	var book Book
+	var bookID int
+
 	json.NewDecoder(r.Body).Decode(&book)
 
-	books = append(books, book)
+	err := bdb.DB.QueryRow(`INSERT INTO books (title, author, year)
+	VALUES($1, $2, $3)
+	RETURNING id;`, book.Title, book.Author, book.Year).Scan(&bookID)
 
-	json.NewEncoder(w).Encode(books)
+	logFatal(err)
+
+	json.NewEncoder(w).Encode(bookID)
 }
 
 func updateBook(w http.ResponseWriter, r *http.Request) {
 	var book Book
 	json.NewDecoder(r.Body).Decode(&book)
 
-	for i, item := range books {
-		if item.ID == book.ID {
-			books[i] = book
-		}
-	}
+	result, err := bdb.DB.Exec(`UPDATE books
+	SET title=$1, author=$2, year=$3
+	WHERE id=$4
+	RETURNING id;`, book.ID, book.Author, book.Year, book.ID)
+	logFatal(err)
 
-	json.NewEncoder(w).Encode(books)
+	rowsUpdated, err := result.RowsAffected()
+	logFatal(err)
+
+	json.NewEncoder(w).Encode(rowsUpdated)
 }
 
 func removeBook(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
-	for i, book := range books {
-		if book.ID == params["id"] {
-			books = append(books[:i], books[i+1:]...)
-		}
+
+	result, err := bdb.DB.Exec(`DELETE FROM books
+	WHERE id=$1`, params["id"])
+	logFatal(err)
+
+	rowsDeleted, err := result.RowsAffected()
+	logFatal(err)
+
+	json.NewEncoder(w).Encode(rowsDeleted)
+}
+
+func logFatal(err error) {
+	if err != nil {
+		log.Fatal(err)
 	}
-	json.NewEncoder(w).Encode(books)
 }

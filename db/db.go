@@ -13,6 +13,14 @@ type DB struct {
 	DB *sql.DB
 }
 
+// Book properties
+type Book struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Author string `json:"author"`
+	Year   string `json:"year"`
+}
+
 // InitDB creates database connection
 func InitDB(dataSourceName string) *DB {
 	db, err := sql.Open("postgres", dataSourceName)
